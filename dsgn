@@ -822,7 +822,7 @@ new() {
   _generate_gitignore "${_target_path}" &&
     printf ">> gitignore generated.\n"
 
-  printf "Done!"
+  printf "Done!\n"
 }
 
 ###############################################################################
