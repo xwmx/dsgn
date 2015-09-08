@@ -360,6 +360,13 @@ _ME=$(basename "$0")
 
 _debug printf "\$_ME: %s\n" "$_ME"
 
+# $_caller_directory
+#
+# Set to the current directory that the program is called from.
+_caller_directory="$PWD"
+
+_debug printf "\$_caller_directory: %s\n" "$_caller_directory"
+
 ###############################################################################
 # Load Commands
 ###############################################################################
@@ -723,84 +730,99 @@ commands() {
 #
 ###############################################################################
 
-# Example Section #############################################################
+# Base Commands ###############################################################
 
-# --------------------------------------------------------------------- example
+# ------------------------------------------------------------------------- new
 
-desc "example" <<EOM
+desc "new" <<EOM
 Usage:
-  $_ME example [<name>] [--farewell]
-
-Options:
-  --farewell  Print "Goodbye, World!"
+  $_ME new <name>
 
 Description:
-  Print "Hello, World!"
+  Create a new \`dsgn\`-structured project.
 EOM
-example() {
-  # These debug statements demonstrate the different behaviors of the
-  # positional parameters, the special variables, and the two generated
-  # command argument arrays.
-  #
-  # Note in particular that $@ and $* omit the script name like the
-  # $_COMMAND_PARAMETERS array does, whereas the positional parameter variables
-  # $0, $1, $2 do include it, like the $_COMMAND_ARGV array.
-  #
-  # Individual elements 0, 1, and 2 of each:
-  _debug printf "example() \$0: %s\n" "${0:-}"
-  _debug printf "example() \${_COMMAND_ARGV[0]:-}: %s\n" "${_COMMAND_ARGV[0]:-}"
-  _debug \
-    printf "example() \${_COMMAND_PARAMETERS[0]:-}: %s\n" \
-    "${_COMMAND_PARAMETERS[0]:-}"
-  _debug printf "example() \$1: %s\n" "${1:-}"
-  _debug printf "example() \${_COMMAND_ARGV[1]:-}: %s\n" "${_COMMAND_ARGV[1]:-}"
-  _debug \
-    printf "example() \${_COMMAND_PARAMETERS[1]:-}: %s\n" \
-    "${_COMMAND_PARAMETERS[1]:-}"
-  _debug printf "example() \$2: %s\n" "${2:-}"
-  _debug printf "example() \${_COMMAND_ARGV[2]:-}: %s\n" "${_COMMAND_ARGV[2]:-}"
-  _debug \
-    printf "example() \${_COMMAND_PARAMETERS[2]:-}: %s\n" \
-    "${_COMMAND_PARAMETERS[2]:-}"
-  # Each expanded to string:
-  _debug printf "example() \${*:-}: %s\n" "${*:-}"
-  _debug printf "example() \${_COMMAND_ARGV[*]:-}: %s\n" "${_COMMAND_ARGV[*]:-}"
-  _debug \
-    printf "example() \${_COMMAND_PARAMETERS[*]:-}: %s\n" \
-    "${_COMMAND_PARAMETERS[*]:-}"
-
-  # Set default greeting.
-  local greeting="Hello"
-  # Initialize arguments array.
-  local arguments=()
-
-  # Parse command arguments.
-  for arg in "${_COMMAND_ARGV[@]:-}"
-  do
-    case $arg in
-      --farewell) greeting="Goodbye";;
-      -*) _die printf "Unexpected option: %s\n" "$arg";;
-      *) arguments+=($arg);;
-    esac
-  done
-
-  _debug printf "example() \${arguments[0]:-}: %s\n" "${arguments[0]:-}"
-  _debug printf "example() \${arguments[1]:-}: %s\n" "${arguments[1]:-}"
-
-  local name=${arguments[1]:-}
-
-  _debug printf "example() \$greeting: %s\n" "$greeting"
-  _debug printf "example() \$name: %s\n" "$name"
-
-  if [[ "$name" == "Moon" ]]
+_generate_gitignore() {
+  local _content
+  read -d '' _content <<EOM
+# Ignore all of the large files in assets except for the manifest.
+/source/assets/*
+!/source/assets/manifest.yml
+EOM
+  if [[ -z "${1}" ]]
   then
-    printf "%s, Luna!\n" "$greeting"
-  elif [[ -n "$name" ]]
-  then
-    printf "%s, %s!\n" "$greeting" "$name"
+    _die printf "Repository directory not specified.\n"
   else
-    printf "%s, World!\n" "$greeting"
+    printf "%s\n" "${_content}" >> "${1}/.gitignore"
   fi
+}
+_generate_manifest() {
+  local _content
+  read -d '' _content <<EOM
+# manifest.yml
+#
+# Asset file metadata.
+#
+# Example entry for a hypothetical file at ./assets/earth/globe_west_2048.jpg
+#
+#   earth:
+#     globe_west_2048.jpg:
+#       description: "The Blue Marble"
+#       context: "http://visibleearth.nasa.gov/view.php?id=57723"
+#       source: "http://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57723/globe_west_2048.jpg"
+#       rights: "public"
+EOM
+  if [[ -z "${1}" ]]
+  then
+    _die printf "Project directory not specified.\n"
+  else
+    printf "%s\n" "${_content}" >> "${1}/source/assets/manifest.yml"
+  fi
+}
+_make_directories() {
+  if [[ -z "${1}" ]]
+  then
+    _die printf "Argument 1, <target_path>, missing.\n"
+  fi
+
+  local _target_path="${1}"
+
+  # create directories
+  #
+  # One directory per line rather than `-p`, for clarity.
+  mkdir -v "${_target_path}"
+  mkdir -v "${_target_path}/build" && touch "${_target_path}/build/.keep"
+  mkdir -v "${_target_path}/source"
+  mkdir -v "${_target_path}/source/assets"
+}
+new() {
+  _debug printf "new() \$PWD: %s\n" "${_caller_directory}"
+
+  if [[ -z "${1}" ]]
+  then
+    _die printf "Project name missing.\n"
+  fi
+  local _name="${1}"
+  local _target_path="${_caller_directory}/${_name}"
+  _debug printf "new() \$_target_path: %s\n" "${_target_path}"
+
+  if [[ -e "${_target_path}" ]]
+  then
+    _die printf "Already exists.\n"
+  fi
+  _make_directories "${_target_path}" &&
+    printf ">> Directory tree initialized.\n"
+
+  _generate_manifest "${_target_path}" &&
+    printf ">> Manifest generated.\n"
+
+  # initialize git repository
+  git init "${_target_path}" &&
+    printf ">> git repository initialized.\n"
+
+  _generate_gitignore "${_target_path}" &&
+    printf ">> gitignore generated.\n"
+
+  printf "Done!"
 }
 
 ###############################################################################
